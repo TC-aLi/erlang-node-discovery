@@ -65,9 +65,7 @@ init([]) ->
         {ok, F} when is_function(F, 1) -> F;
         {ok, {M, F}} -> fun M:F/1
     end,
-    Hosts = application:get_env(erlang_node_discovery, hosts, []),
-    NodePorts = application:get_env(erlang_node_discovery, node_ports, []),
-    error_logger:info_msg("Using ~p as Hosts~n", [Hosts]),
+    NodeHostPorts = application:get_env(erlang_node_discovery, node_host_port, []),
 
     %% adding static nodes to db
     _ = [
@@ -75,7 +73,7 @@ init([]) ->
             Node = list_to_atom(lists:flatten(io_lib:format("~s@~s", [NodeName, Host]))),
             Callback:add_node(Node, ResolveFunc(Host), Port),
             error_logger:info_msg("Added static node to db ~s~n", [Node])
-        end || {NodeName, Port} <- NodePorts, Host <- Hosts
+        end || {NodeName, Host, Port} <- NodeHostPorts
     ],
 	{ok, reinit_workers(#state{workers = #{}, resolve_func = ResolveFunc, db_callback = Callback})}.
 
