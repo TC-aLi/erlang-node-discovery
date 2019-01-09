@@ -65,7 +65,7 @@ init([]) ->
         {ok, F} when is_function(F, 1) -> F;
         {ok, {M, F}} -> fun M:F/1
     end,
-    NodeHostPorts = application:get_env(erlang_node_discovery, node_host_port, []),
+    NodeHostPorts = application:get_env(erlang_node_discovery, node_host_ports, []),
 
     %% adding static nodes to db
     _ = [

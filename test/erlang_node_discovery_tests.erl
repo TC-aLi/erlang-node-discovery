@@ -25,7 +25,7 @@ manager_test_() ->
                 end
             end || Mod <- AllModules
         ],
-        _ = [application:unset_env(erlang_node_discovery, Key) || Key <- [node_host_port, db_callback]],
+        _ = [application:unset_env(erlang_node_discovery, Key) || Key <- [node_host_ports, db_callback]],
         ok
     end,
     [
@@ -33,7 +33,7 @@ manager_test_() ->
             NodePorts= [{"a", 11}, {<<"b">>, 12}, {c, 13}],
             Hosts = ["host1", <<"host2">>, host3],
             NodeHostPorts = [{Node, Host, Port} || {Node, Port} <- NodePorts, Host <- Hosts],
-            application:set_env(erlang_node_discovery, node_host_port, NodeHostPorts),
+            application:set_env(erlang_node_discovery, node_host_ports, NodeHostPorts),
             Pid = start_manager(),
             Info = erlang_node_discovery_manager:get_info(),
             Workers = lists:sort(proplists:get_value(workers, Info, [])),

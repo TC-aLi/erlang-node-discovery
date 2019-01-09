@@ -12,7 +12,7 @@ on different hosts, as it happens in Mesos.
     {erlang_node_discovery, [
         {db_callback, erlang_node_discovery_db},
         % List of {node, host, port}
-        {node_host_port, [
+        {node_host_ports, [
             {app1, host1.local, 17011},
             {app2, host2.local, 17012},
             {app3, host3.local, 17013}
@@ -32,7 +32,7 @@ standard distribution protocol. See more details about EPMDLESS here: https://gi
 ```
 { erlang_node_discovery, [
     {db_callback, epmdless_dist},
-    {node_host_port, [
+    {node_host_ports, [
         {app1, host1.local, 17011},
         {app2, host2.local, 17012},
         {app3, host3.local, 17013}
