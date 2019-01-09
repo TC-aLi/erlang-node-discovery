@@ -25,15 +25,15 @@ manager_test_() ->
                 end
             end || Mod <- AllModules
         ],
-        _ = [application:unset_env(erlang_node_discovery, Key) || Key <- [node_names, hosts, db_callback]],
+        _ = [application:unset_env(erlang_node_discovery, Key) || Key <- [node_host_port, db_callback]],
         ok
     end,
     [
         {"starting with static nodes, checking info", fun() ->
             NodePorts= [{"a", 11}, {<<"b">>, 12}, {c, 13}],
             Hosts = ["host1", <<"host2">>, host3],
-            application:set_env(erlang_node_discovery, node_ports, NodePorts),
-            application:set_env(erlang_node_discovery, hosts, Hosts),
+            NodeHostPorts = [{Node, Host, Port} || {Node, Port} <- NodePorts, Host <- Hosts],
+            application:set_env(erlang_node_discovery, node_host_port, NodeHostPorts),
             Pid = start_manager(),
             Info = erlang_node_discovery_manager:get_info(),
             Workers = lists:sort(proplists:get_value(workers, Info, [])),

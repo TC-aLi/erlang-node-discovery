@@ -11,14 +11,11 @@ on different hosts, as it happens in Mesos.
 [
     {erlang_node_discovery, [
         {db_callback, erlang_node_discovery_db},
-        % List of hosts where apps can be started
-        {hosts, ["host1.local", "host2.local", "host3.local"]},
-
-        % List of nodenames and their ports
-        {node_ports, [
-            {app1, 17012},
-            {app2, 17013},
-            {app3, 17113}
+        % List of {node, host, port}
+        {node_host_port, [
+            {app1, host1.local, 17011},
+            {app2, host2.local, 17012},
+            {app3, host3.local, 17013}
         ]}
     ]}
 ].
@@ -35,11 +32,10 @@ standard distribution protocol. See more details about EPMDLESS here: https://gi
 ```
 { erlang_node_discovery, [
     {db_callback, epmdless_dist},
-    {hosts, ["host1.local", "host2.local"]},
-    {node_ports, [
-        {'app1', 17012},
-        {'app2', 17013},
-        {'app3', 17015}
+    {node_host_port, [
+        {app1, host1.local, 17011},
+        {app2, host2.local, 17012},
+        {app3, host3.local, 17013}
     ]},
     {cookie, app_cookie}
 ]}
