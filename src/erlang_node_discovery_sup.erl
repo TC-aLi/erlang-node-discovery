@@ -6,7 +6,7 @@
 
 
 start_link() ->
-	supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 
 init([]) ->
@@ -22,4 +22,4 @@ init([]) ->
         erlang_node_discovery_manager, {erlang_node_discovery_manager, start_link, []},
         permanent, 5000, worker, [erlang_node_discovery_manager]
     },
-	{ok, {{rest_for_one, 4, 3600}, [WorkersSup, NodeDB, WorkersManager]}}.
+    {ok, {{rest_for_one, 4, 3600}, [WorkersSup, NodeDB, WorkersManager]}}.

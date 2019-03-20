@@ -8,10 +8,6 @@
 -export([stop_worker/1]).
 
 
-start_link() ->
-	supervisor:start_link({local, ?MODULE}, ?MODULE, []).
-
-
 -spec start_worker(node()) -> {ok, pid()}.
 start_worker(Node) ->
     supervisor:start_child(?MODULE, [Node]).
@@ -22,11 +18,13 @@ stop_worker(Pid) ->
     supervisor:terminate_child(?MODULE, Pid).
 
 
+start_link() ->
+    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+
+
 init([]) ->
-	ChildSpec = {
-        erlang_node_discovery_worker, {erlang_node_discovery_worker, start_link, []}, temporary,
-        5000, worker, []
+    ChildSpec = {
+        erlang_node_discovery_worker, {erlang_node_discovery_worker, start_link, []},
+        temporary, 5000, worker, []
     },
-	{ok, {{simple_one_for_one, 4, 3600}, [ChildSpec]}}.
-
-
+    {ok, {{simple_one_for_one, 4, 3600}, [ChildSpec]}}.

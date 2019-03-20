@@ -20,3 +20,4 @@ rel/example_project
 !/docker/cron.d/
 *.swp
 *.swo
+*.iml

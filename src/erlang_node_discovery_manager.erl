@@ -1,20 +1,18 @@
 -module(erlang_node_discovery_manager).
 -behaviour(gen_server).
 
-%% API.
--export([start_link/0]).
--export([add_node/3]).
--export([remove_node/1]).
--export([list_nodes/0]).
--export([get_info/0]).
-
-%% gen_server.
 -export([init/1]).
 -export([handle_call/3]).
 -export([handle_cast/2]).
 -export([handle_info/2]).
 -export([terminate/2]).
 -export([code_change/3]).
+
+-export([start_link/0]).
+-export([add_node/3]).
+-export([remove_node/1]).
+-export([list_nodes/0]).
+-export([get_info/0]).
 
 -record(state, {
     db_callback  :: module(), %% add_node/3, remove_node/1, list_nodes/0
@@ -25,7 +23,7 @@
 
 -spec start_link() -> {ok, pid()}.
 start_link() ->
-	gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 
 -spec add_node(node(), inet:hostname(), inet:port_number()) -> ok.
@@ -51,8 +49,7 @@ get_info() ->
     gen_server:call(?MODULE, get_info, infinity).
 
 
-%% gen_server.
-
+%% gen_server
 init([]) ->
     Callback = application:get_env(erlang_node_discovery, db_callback, erlang_node_discovery_db),
     error_logger:info_msg("Using ~p as node db~n", [Callback]),
@@ -75,7 +72,7 @@ init([]) ->
             error_logger:info_msg("Added static node to db ~s~n", [Node])
         end || {NodeName, Host, Port} <- NodeHostPorts
     ],
-	{ok, reinit_workers(#state{workers = #{}, resolve_func = ResolveFunc, db_callback = Callback})}.
+    {ok, reinit_workers(#state{workers = #{}, resolve_func = ResolveFunc, db_callback = Callback})}.
 
 
 handle_call({add_node, Node, Host, Port}, _From, State = #state{db_callback = Callback, resolve_func = RF}) ->
@@ -98,12 +95,12 @@ handle_call(get_info, _From, State = #state{workers = Workers, db_callback = Cal
 
 handle_call(Msg, _From, State) ->
     error_logger:error_msg("Unexpected message: ~p~n", [Msg]),
-	{reply, {error, {bad_msg, Msg}}, State}.
+    {reply, {error, {bad_msg, Msg}}, State}.
 
 
 handle_cast(Msg, State) ->
     error_logger:error_msg("Unexpected message: ~p~n", [Msg]),
-	{noreply, State}.
+    {noreply, State}.
 
 
 handle_info({'DOWN', _Ref, _Type, Pid, Reason}, State) ->
@@ -112,20 +109,18 @@ handle_info({'DOWN', _Ref, _Type, Pid, Reason}, State) ->
 
 handle_info(Msg, State) ->
     error_logger:error_msg("Unexpected message: ~p~n", [Msg]),
-	{noreply, State}.
+    {noreply, State}.
 
 
 terminate(_Reason, _State) ->
-	ok.
+    ok.
 
 
 code_change(_OldVsn, State, _Extra) ->
-	{ok, State}.
+    {ok, State}.
 
 
 %% internal funcs
-
-
 -spec worker_down(State, Pid) -> NewState when
       State    :: #state{},
       Pid      :: pid(),

@@ -1,17 +1,24 @@
 -module(erlang_node_discovery_db).
-
 -behaviour(gen_server).
 
--export([start_link/0]).
--export([init/1, handle_info/2, handle_cast/2, handle_call/3, terminate/2, code_change/3]).
--export([add_node/3, remove_node/1, list_nodes/0]).
+-export([init/1]).
+-export([handle_call/3]).
+-export([handle_cast/2]).
+-export([handle_info/2]).
+-export([terminate/2]).
+-export([code_change/3]).
 
+-export([start_link/0]).
+-export([add_node/3]).
+-export([remove_node/1]).
+-export([list_nodes/0]).
 
 -record(state, {
     nodes = #{} :: map()
 }).
 
 
+-spec start_link() -> {ok, pid()}.
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
@@ -31,19 +38,9 @@ list_nodes() ->
     gen_server:call(?MODULE, list_nodes, infinity).
 
 
-
+%% gen_server
 init([]) ->
     {ok, #state{}}.
-
-
-handle_info(Msg, State) ->
-    error_logger:error_msg("Unexpected message: ~p~n", [Msg]),
-    {noreply, State}.
-
-
-handle_cast(Msg, State) ->
-    error_logger:error_msg("Unexpected message: ~p~n", [Msg]),
-    {noreply, State}.
 
 
 handle_call({add_node, Node, Host, Port}, _From, State = #state{nodes = Nodes}) ->
@@ -58,6 +55,16 @@ handle_call(list_nodes, _From, State) ->
 handle_call(Msg, _From, State) ->
     error_logger:error_msg("Unexpected message: ~p~n", [Msg]),
     {reply, {error, {bad_msg, Msg}}, State}.
+
+
+handle_cast(Msg, State) ->
+    error_logger:error_msg("Unexpected message: ~p~n", [Msg]),
+    {noreply, State}.
+
+
+handle_info(Msg, State) ->
+    error_logger:error_msg("Unexpected message: ~p~n", [Msg]),
+    {noreply, State}.
 
 
 terminate(_Reason, _State) ->
