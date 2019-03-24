@@ -13,9 +13,9 @@
 
 -record(state, {
     sub_pid     :: pid(),
-    sub_pchan   :: binary(),  %% patten channel
-    pub_timer   :: any(),     %% timer reference
-    pub_chan    :: binary(),  %% channel
+    sub_pchan   :: binary(),    %% patten channel
+    pub_timer   :: reference(), %% timer reference
+    pub_chan    :: binary(),    %% channel
     pub_payload :: binary(),
     pub_intvl   :: integer()
 }).
@@ -36,7 +36,7 @@ pub() ->
     ContainerName = proplists:get_value(container_name, Conf, ?DEFAULT_CONTAINER_NAME),
     PubInterval   = proplists:get_value(pub_interval,   Conf, ?DEFAULT_PUB_INTERVAL),
     Chan = list_to_binary(ChannelPrefix ++ atom_to_list(node())),
-    Payload = term_to_binary({node(), os:getenv(ContainerName), DiscoveryPort}),
+    Payload = term_to_binary({node(), {os:getenv(ContainerName), DiscoveryPort}}),
     pub(Chan, Payload, PubInterval).
 
 -spec pub(string(), term(), integer()) -> ok.
@@ -68,9 +68,8 @@ init([]) ->
 
 
 handle_call({pub, Chan, Payload, Intvl}, _From, State) ->
-    Self = self(),
-    Timer = erlang:send_after(0, Self, {pub, Self}),
-    {reply, ok, State#state{pub_timer = Timer, pub_chan = Chan, pub_payload = Payload, pub_intvl = Intvl}};
+    State1 = update_pub_timer(start, State),
+    {reply, ok, State1#state{pub_chan = Chan, pub_payload = Payload, pub_intvl = Intvl}};
 
 handle_call(Msg, _From, State) ->
     io:format("Unexpected message: ~p~n", [Msg]),
@@ -82,29 +81,31 @@ handle_cast(Msg, State) ->
     {noreply, State}.
 
 
-handle_info({pub, From}, State = #state{pub_timer = Timer, pub_chan = Chan, pub_payload = Payload, pub_intvl = Intvl}) when From =:= self() ->
-    erlang:cancel_timer(Timer),
-    Self = self(),
-    NewTimer = erlang:send_after(Intvl, Self, {pub, Self}),
-    tt_redis:publish(pubsub, Chan, Payload),
-    {noreply, State#state{pub_timer = NewTimer}};
+handle_info({pub, _From}, State = #state{pub_payload = Payload}) ->
+    NodeList = erlang_node_discovery_manager:list_nodes(),
+    Action = case NodeList =:= [] orelse NodeList =:= [binary_to_term(Payload)] of true -> renew; false -> cancel end,
+    State1 = update_pub_timer(Action, State),
+    publish(State1),
+    {noreply, State1};
 
 handle_info(timeout, State = #state{sub_pchan = PChan}) ->
     io:format("timeout ~n"),
     {Pid, _} = psub(PChan),
     {noreply, State#state{sub_pid = Pid}};
 
-handle_info({subscribed, _PChan, Pid} = Msg, State = #state{sub_pid = Pid}) ->
-    io:format("Channel subscribed ~p~n", [Msg]),
+handle_info({subscribed, PChan, Pid}, State = #state{sub_pid = Pid}) ->
+    io:format("Channel subscribed ~p~n", [PChan]),
     eredis_sub:ack_message(Pid),
     {noreply, State};
 
-handle_info({pmessage, PChan, _Chan, Payload, Pid} = Msg, State = #state{sub_pid = Pid, sub_pchan = PChan}) ->
-    io:format("Message received ~p~n", [Msg]),
-    io:format("State is ~p~n", [State]),
+handle_info({pmessage, PChan, Chan, PL, Pid}, State = #state{sub_pid = Pid, sub_pchan = PChan}) ->
+    io:format("Message received ~p~n", [Chan]),
     eredis_sub:ack_message(Pid),
-    {Node, Host, Port} = binary_to_term(Payload),
-    erlang_node_discovery_manager:add_node(Node, Host, Port),
+    not lists:member({Node, {Host, Port}} = binary_to_term(PL), erlang_node_discovery_manager:list_nodes()) andalso
+    begin
+        erlang_node_discovery_manager:add_node(Node, Host, Port),
+        Node =/= node() andalso publish(State)
+    end,
     {noreply, State};
 
 handle_info({eredis_disconnected, Pid}, State = #state{sub_pid = Pid}) ->
@@ -129,3 +130,24 @@ terminate(_Reason, _State) ->
 
 code_change(_Old, State, _Extra) ->
     {ok, State}.
+
+
+%% internal funcs
+update_pub_timer(start, State) ->
+    Self = self(),
+    Timer = erlang:send_after(0, Self, {pub, Self}),
+    State#state{pub_timer = Timer};
+
+update_pub_timer(renew, State = #state{pub_timer = Timer, pub_intvl = Intvl}) ->
+    erlang:cancel_timer(Timer),
+    Self = self(),
+    NewTimer = erlang:send_after(Intvl, Self, {pub, Self}),
+    State#state{pub_timer = NewTimer};
+
+update_pub_timer(cancel, State = #state{pub_timer = Timer}) ->
+    erlang:cancel_timer(Timer),
+    State#state{pub_timer = undefined}.
+
+
+publish(#state{pub_chan = Chan, pub_payload = Payload}) ->
+    tt_redis:publish(pubsub, Chan, Payload).
