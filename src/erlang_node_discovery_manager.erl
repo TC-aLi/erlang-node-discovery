@@ -52,27 +52,13 @@ get_info() ->
 %% gen_server
 init([]) ->
     Callback = application:get_env(erlang_node_discovery, db_callback, erlang_node_discovery_db),
-    error_logger:info_msg("Using ~p as node db~n", [Callback]),
-    case application:get_env(erlang_node_discovery, cookie) of
-        undefined -> ok;
-        {ok, Cookie} -> erlang:set_cookie(node(), Cookie)
-    end,
-    ResolveFunc = case application:get_env(erlang_node_discovery, resolve_func) of
+    ResolveFunc =
+    case application:get_env(erlang_node_discovery, resolve_func) of
         undefined -> fun(H) -> H end;
         {ok, F} when is_function(F, 1) -> F;
         {ok, {M, F}} -> fun M:F/1
     end,
-    NodeHostPorts = application:get_env(erlang_node_discovery, node_host_ports, []),
-
-    %% adding static nodes to db
-    _ = [
-        begin
-            Node = list_to_atom(lists:flatten(io_lib:format("~s@~s", [NodeName, Host]))),
-            Callback:add_node(Node, ResolveFunc(Host), Port),
-            error_logger:info_msg("Added static node to db ~s~n", [Node])
-        end || {NodeName, Host, Port} <- NodeHostPorts
-    ],
-    {ok, reinit_workers(#state{workers = #{}, resolve_func = ResolveFunc, db_callback = Callback})}.
+    {ok, #state{workers = #{}, resolve_func = ResolveFunc, db_callback = Callback}}.
 
 
 handle_call({add_node, Node, Host, Port}, _From, State = #state{db_callback = Callback, resolve_func = RF}) ->

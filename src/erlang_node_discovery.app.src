@@ -5,7 +5,8 @@
     {mod, { erlang_node_discovery_app, []}},
     {applications, [
         kernel,
-        stdlib]
+        stdlib,
+        redis_config]
     },
     {env,[]},
     {modules, []},

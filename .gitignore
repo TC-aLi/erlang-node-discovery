@@ -13,11 +13,12 @@ rel/example_project
 .rebar
 
 /.idea/
-/crawlera_proxy_provisioner.iml
 /.erlang.mk/
 /ebin/
 /log/
+/_build/
 !/docker/cron.d/
 *.swp
 *.swo
 *.iml
+
