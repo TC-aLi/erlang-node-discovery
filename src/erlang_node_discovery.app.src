@@ -6,7 +6,9 @@
     {applications, [
         kernel,
         stdlib,
-        redis_config]
+        worker_pool,
+        redis_config,
+        eredis]
     },
     {env,[]},
     {modules, []},
