@@ -27,4 +27,10 @@ init([]) ->
         erlang_node_discovery_worker, {erlang_node_discovery_worker, start_link, []},
         temporary, 5000, worker, []
     },
-    {ok, {{simple_one_for_one, 4, 3600}, [ChildSpec]}}.
+    {ok, {sup_spec(), [ChildSpec]}}.
+
+
+sup_spec() ->
+    #{strategy  => simple_one_for_one,
+      intensity => 4,
+      period    => 3600}.
