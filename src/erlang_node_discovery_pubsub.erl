@@ -13,9 +13,9 @@
 
 -record(state, {
     sub_pid     :: pid(),
-    sub_pchan   :: binary(),    %% patten channel
-    pub_timer   :: reference(), %% timer reference
-    pub_chan    :: binary(),    %% channel
+    sub_pchan   :: binary(),                       %% pattern channel
+    pub_timer   :: reference() | undefined | once, %% timer
+    pub_chan    :: binary(),                       %% channel
     pub_payload :: term(),
     pub_intvl   :: integer()
 }).
@@ -66,14 +66,20 @@ handle_info({subscribed, PChan, Pid}, State = #state{sub_pid = Pid}) ->
     eredis_sub:ack_message(Pid),
     {noreply, State};
 
-handle_info({pmessage, PChan, Chan, PL, Pid}, State = #state{sub_pid = Pid, sub_pchan = PChan}) ->
-    io:format("Message received ~p~n", [Chan]),
+handle_info({pmessage, PChan, _Chan, PL, Pid}, State = #state{sub_pid = Pid, sub_pchan = PChan, pub_payload = {Node, _}}) ->
     eredis_sub:ack_message(Pid),
-    {_, {Node, {Host, Port}}} = binary_to_term(PL),
-    not lists:member({Node, {Host, Port}}, erlang_node_discovery_manager:list_nodes()) andalso
-    begin
-        erlang_node_discovery_manager:add_node(Node, Host, Port),
-        Node =/= node() andalso publish(all, State#state{pub_timer = once})
+    {To, {From, {Host, Port}}} = binary_to_term(PL),
+    case To of
+        all ->
+            io:format("Message received from ~p to ~p~n", [From, To]),
+            add_node(From, Host, Port),
+            From =/= Node andalso publish(From, State#state{pub_timer = once});
+        Node ->
+            io:format("Message received from ~p to ~p ~n", [From, To]),
+            add_node(From, Host, Port);
+        _ ->
+            io:format("Message received from ~p to ~p ignored~n", [From, To]),
+            ignore
     end,
     {noreply, State};
 
@@ -152,3 +158,8 @@ publish(_To, #state{pub_timer = undefined}) ->
 
 publish(To, #state{pub_chan = Chan, pub_payload = Payload}) ->
     tt_redis:publish(pubsub, Chan, term_to_binary({To, Payload})).
+
+
+add_node(From, Host, Port) ->
+    not lists:member({From, {Host, Port}}, erlang_node_discovery_manager:list_nodes()) andalso
+    erlang_node_discovery_manager:add_node(From, Host, Port).
