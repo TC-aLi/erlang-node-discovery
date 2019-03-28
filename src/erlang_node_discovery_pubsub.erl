@@ -35,7 +35,7 @@ pub() ->
 
 %% gen_server
 init([]) ->
-    {ok, update_pub_timer(start, init_pub(init_psub(#state{})))}.
+    {ok, set_pub_timer(start, init_pub(init_psub(#state{})))}.
 
 
 handle_call(Msg, _From, State) ->
@@ -49,14 +49,10 @@ handle_cast(Msg, State) ->
 
 
 handle_info({pub, _From}, State = #state{pub_timer = {Type, _}, pub_payload = Payload}) ->
+    Type =:= started andalso publish(all, State#state{pub_timer = once}),
     Action = case erlang_node_discovery_manager:list_nodes() of [] -> restart; [Payload] -> restart; _ -> stop end,
     State1 = update_pub_timer(Action, State),
-    case Type of
-        started ->
-            publish(all, State#state{pub_timer = once});
-        restarted ->
-            publish(all, State1)
-    end,
+    publish(all, State1),
     {noreply, State1};
 
 handle_info({subscribed, PChan, Pid}, State = #state{sub_pid = Pid}) ->
@@ -135,18 +131,18 @@ psub(PChan) ->
     Pid.
 
 
-update_pub_timer(start, State) ->
+set_pub_timer(start, State) ->
     Self = self(),
     Timer = erlang:send_after(?DEFAULT_PUB_DELAY, Self, {pub, Self}),
     State#state{pub_timer = {started, Timer}};
 
-update_pub_timer(restart, State = #state{pub_timer = {_, Timer}, pub_intvl = Intvl}) ->
+set_pub_timer(restart, State = #state{pub_timer = {_, Timer}, pub_intvl = Intvl}) ->
     erlang:cancel_timer(Timer),
     Self = self(),
     NewTimer = erlang:send_after(Intvl, Self, {pub, Self}),
     State#state{pub_timer = {restarted, NewTimer}};
 
-update_pub_timer(stop, State = #state{pub_timer = {_, Timer}}) ->
+set_pub_timer(stop, State = #state{pub_timer = {_, Timer}}) ->
     erlang:cancel_timer(Timer),
     State#state{pub_timer = undefined}.
 
