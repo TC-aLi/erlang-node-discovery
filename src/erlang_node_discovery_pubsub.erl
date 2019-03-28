@@ -35,11 +35,8 @@ pub() ->
 
 %% gen_server
 init([]) ->
-    {ok, init_pub(init_psub(#state{}))}.
+    {ok, update_pub_timer(start, init_pub(init_psub(#state{})))}.
 
-
-handle_call({pub, _Self}, _From, State) ->
-    {reply, ok, update_pub_timer(start, State)};
 
 handle_call(Msg, _From, State) ->
     io:format("Unexpected message: ~p~n", [Msg]),
@@ -51,15 +48,16 @@ handle_cast(Msg, State) ->
     {noreply, State}.
 
 
-handle_info({pub, _From}, State = #state{pub_payload = Payload}) ->
+handle_info({pub, _From}, State = #state{pub_timer = {Type, _}, pub_payload = Payload}) ->
     Action = case erlang_node_discovery_manager:list_nodes() of [] -> restart; [Payload] -> restart; _ -> stop end,
     State1 = update_pub_timer(Action, State),
-    publish(all, State1),
+    case Type of
+        started ->
+            publish(all, State#state{pub_timer = once});
+        restarted ->
+            publish(all, State1)
+    end,
     {noreply, State1};
-
-handle_info(timeout, State = #state{sub_pchan = PChan}) ->
-    io:format("timeout ~n"),
-    {noreply, State#state{sub_pid = psub(PChan)}};
 
 handle_info({subscribed, PChan, Pid}, State = #state{sub_pid = Pid}) ->
     io:format("Channel subscribed ~p~n", [PChan]),
@@ -139,16 +137,16 @@ psub(PChan) ->
 
 update_pub_timer(start, State) ->
     Self = self(),
-    Timer = erlang:send_after(0, Self, {pub, Self}),
-    State#state{pub_timer = Timer};
+    Timer = erlang:send_after(?DEFAULT_PUB_DELAY, Self, {pub, Self}),
+    State#state{pub_timer = {started, Timer}};
 
-update_pub_timer(restart, State = #state{pub_timer = Timer, pub_intvl = Intvl}) ->
+update_pub_timer(restart, State = #state{pub_timer = {_, Timer}, pub_intvl = Intvl}) ->
     erlang:cancel_timer(Timer),
     Self = self(),
     NewTimer = erlang:send_after(Intvl, Self, {pub, Self}),
-    State#state{pub_timer = NewTimer};
+    State#state{pub_timer = {restarted, NewTimer}};
 
-update_pub_timer(stop, State = #state{pub_timer = Timer}) ->
+update_pub_timer(stop, State = #state{pub_timer = {_, Timer}}) ->
     erlang:cancel_timer(Timer),
     State#state{pub_timer = undefined}.
 
