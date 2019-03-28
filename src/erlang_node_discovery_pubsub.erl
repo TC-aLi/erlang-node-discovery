@@ -48,10 +48,13 @@ handle_cast(Msg, State) ->
     {noreply, State}.
 
 
-handle_info({pub, _From}, State = #state{pub_timer = {Type, _}, pub_payload = Payload}) ->
-    Type =:= started andalso publish(all, State#state{pub_timer = once}),
+handle_info({pub, _From}, State = #state{pub_timer = {started, _}}) ->
+    publish(all, State#state{pub_timer = once}),
+    {noreply, set_pub_timer(restart, State)};
+
+handle_info({pub, _From}, State = #state{pub_timer = {restarted, _}, pub_payload = Payload}) ->
     Action = case erlang_node_discovery_manager:list_nodes() of [] -> restart; [Payload] -> restart; _ -> stop end,
-    State1 = update_pub_timer(Action, State),
+    State1 = set_pub_timer(Action, State),
     publish(all, State1),
     {noreply, State1};
 
