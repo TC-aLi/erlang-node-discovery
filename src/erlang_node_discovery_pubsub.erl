@@ -48,10 +48,6 @@ handle_cast(Msg, State) ->
     {noreply, State}.
 
 
-handle_info({sleep, N}, State) ->
-    timer:sleep(N),
-    {noreply, State};
-
 handle_info(timeout, State) ->
     State1 = psub(State),
     State2 = set_pub_timer(start, State1),
