@@ -52,7 +52,6 @@ handle_info(timeout, State) ->
     State1 = psub(State),
     State2 = set_pub_timer(start, State1),
     publish(all, State2#state{pub_timer = once}),
-    erlang:link(whereis(erlang_node_discovery_manager)),
     {noreply, State2};
 
 handle_info(pub, State = #state{pub_payload = Payload}) ->
@@ -161,5 +160,5 @@ is_in_cluster(Payload) ->
     case erlang_node_discovery_manager:list_nodes() of
         [] -> false;
         [Payload] -> false;
-        L -> lists:any(fun erlang_node_discovery_manager:get_node_status/1, [Node || {Node, _} <- L -- [Payload]])
+        L -> lists:any(fun erlang_node_discovery_manager:is_node_up/1, [Node || {Node, _} <- L -- [Payload]])
     end.

@@ -9,7 +9,8 @@
 -export([code_change/3]).
 
 -export([start_link/1]).
--export([get_node_status/1]).
+-export([get_node/1]).
+-export([is_node_up/1]).
 
 -record(state, {
     node    :: node(),
@@ -23,9 +24,13 @@ start_link(Node) ->
     gen_server:start_link(?MODULE, Node, []).
 
 
--spec get_node_status(pid()) -> up | down.
-get_node_status(Pid) ->
-    gen_server:call(Pid, node_status, infinity).
+-spec get_node(pid()) -> node().
+get_node(Worker) ->
+    gen_server:call(Worker, get_node, infinity).
+
+-spec is_node_up(pid()) -> boolean().
+is_node_up(Worker) ->
+    gen_server:call(Worker, is_node_up, infinity).
 
 
 %% gen_server
@@ -34,8 +39,11 @@ init(Node) ->
     {ok, init_timer(#state{node = Node, node_up = false}, 0)}.
 
 
-handle_call(node_status, _From, State = #state{node = Node, node_up = IsUp}) ->
-    {reply, handle_get_node_status(Node, IsUp), State};
+handle_call(get_node, _From, State = #state{node = Node}) ->
+    {reply, Node, State};
+
+handle_call(is_node_up, _From, State = #state{node = Node, node_up = IsUp}) ->
+    {reply, IsUp orelse Node =:= node(), State};
 
 handle_call(Msg, _From, State) ->
     error_logger:error_msg("Unexpected message: ~p~n", [Msg]),
@@ -95,11 +103,3 @@ init_timer(State) ->
 init_timer(State = #state{timer = Timer}, Delay) ->
     catch erlang:cancel_timer(Timer),
     State#state{timer = erlang:send_after(Delay, self(), ping)}.
-
-
--spec handle_get_node_status(node(), boolean()) -> boolean().
-handle_get_node_status(Node, false) when Node =:= node() ->
-    true;
-
-handle_get_node_status(_, Bool) ->
-    Bool.
