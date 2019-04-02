@@ -14,7 +14,7 @@
 -record(state, {
     sub_pid     :: pid(),
     sub_pchan   :: binary(),                       %% pattern channel
-    pub_timer   :: reference() | undefined | once, %% timer
+    pub_timer   :: reference() | once | undefined, %% timer
     pub_chan    :: binary(),                       %% channel
     pub_payload :: term(),
     pub_intvl   :: integer()
@@ -28,14 +28,14 @@ start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 
--spec pub() -> ok.
+-spec pub() -> pub.
 pub() ->
-    gen_server:call(?MODULE, {pub, self()}, infinity).
+    erlang:send(?MODULE, pub).
 
 
 %% gen_server
 init([]) ->
-    {ok, set_pub_timer(start, init_pub(init_psub(#state{})))}.
+    {ok, init_pub(init_psub(#state{})), ?DEFAULT_PUB_DELAY}.
 
 
 handle_call(Msg, _From, State) ->
@@ -48,13 +48,19 @@ handle_cast(Msg, State) ->
     {noreply, State}.
 
 
-handle_info({pub, _From}, State = #state{pub_timer = {started, _}}) ->
-    publish(all, State#state{pub_timer = once}),
-    {noreply, set_pub_timer(restart, State)};
+handle_info({sleep, N}, State) ->
+    timer:sleep(N),
+    {noreply, State};
 
-handle_info({pub, _From}, State = #state{pub_timer = {restarted, _}, pub_payload = Payload}) ->
-    Action = case erlang_node_discovery_manager:list_nodes() of [] -> restart; [Payload] -> restart; _ -> stop end,
-    State1 = set_pub_timer(Action, State),
+handle_info(timeout, State) ->
+    State1 = psub(State),
+    State2 = set_pub_timer(start, State1),
+    publish(all, State2#state{pub_timer = once}),
+    erlang:link(whereis(erlang_node_discovery_manager)),
+    {noreply, State2};
+
+handle_info(pub, State = #state{pub_payload = Payload}) ->
+    State1 = set_pub_timer(case is_in_cluster(Payload) of true -> stop; false -> start end, State),
     publish(all, State1),
     {noreply, State1};
 
@@ -120,43 +126,44 @@ init_psub(State) ->
     Conf = application:get_all_env(erlang_node_discovery),
     ChannelPrefix = proplists:get_value(channel_prefix, Conf, ?DEFAULT_CHANNEL_PREFIX),
     PChan = list_to_binary(ChannelPrefix ++ "*"),
-    Pid = psub(PChan),
-    State#state{sub_pid = Pid, sub_pchan = PChan}.
+    State#state{sub_pchan = PChan}.
 
 
-psub(PChan) ->
+psub(State = #state{sub_pchan = PChan}) ->
     Conf = proplists:get_value(pubsub_1, redis_config_manager:get_all_hosts(pubsub), []),
     Host = proplists:get_value(name, Conf, "127.0.0.1"),
     Port = proplists:get_value(port, Conf, 6379),
     {ok, Pid} = eredis_sub:start_link(Host, Port, ""),
     eredis_sub:controlling_process(Pid),
     eredis_sub:psubscribe(Pid, [PChan]),
-    Pid.
+    State#state{sub_pid = Pid}.
 
 
-set_pub_timer(start, State) ->
-    Self = self(),
-    Timer = erlang:send_after(?DEFAULT_PUB_DELAY, Self, {pub, Self}),
-    State#state{pub_timer = {started, Timer}};
+set_pub_timer(start, State = #state{pub_timer = Timer, pub_intvl = Intvl}) ->
+    catch erlang:cancel_timer(Timer),
+    NewTimer = erlang:send_after(Intvl, self(), pub),
+    State#state{pub_timer = NewTimer};
 
-set_pub_timer(restart, State = #state{pub_timer = {_, Timer}, pub_intvl = Intvl}) ->
-    erlang:cancel_timer(Timer),
-    Self = self(),
-    NewTimer = erlang:send_after(Intvl, Self, {pub, Self}),
-    State#state{pub_timer = {restarted, NewTimer}};
-
-set_pub_timer(stop, State = #state{pub_timer = {_, Timer}}) ->
-    erlang:cancel_timer(Timer),
+set_pub_timer(stop, State = #state{pub_timer = Timer}) ->
+    catch erlang:cancel_timer(Timer),
     State#state{pub_timer = undefined}.
 
 
 publish(_To, #state{pub_timer = undefined}) ->
     ok;
 
-publish(To, #state{pub_chan = Chan, pub_payload = Payload}) ->
+publish(To, #state{pub_timer = Timer, pub_chan = Chan, pub_payload = Payload}) when is_reference(Timer) orelse Timer =:= once ->
     tt_redis:publish(pubsub, Chan, term_to_binary({To, Payload})).
 
 
 add_node(From, Host, Port) ->
     not lists:member({From, {Host, Port}}, erlang_node_discovery_manager:list_nodes()) andalso
     erlang_node_discovery_manager:add_node(From, Host, Port).
+
+
+is_in_cluster(Payload) ->
+    case erlang_node_discovery_manager:list_nodes() of
+        [] -> false;
+        [Payload] -> false;
+        L -> lists:any(fun erlang_node_discovery_manager:get_node_status/1, [Node || {Node, _} <- L -- [Payload]])
+    end.

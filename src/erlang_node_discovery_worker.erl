@@ -9,6 +9,7 @@
 -export([code_change/3]).
 
 -export([start_link/1]).
+-export([get_node_status/1]).
 
 -record(state, {
     node    :: node(),
@@ -22,11 +23,19 @@ start_link(Node) ->
     gen_server:start_link(?MODULE, Node, []).
 
 
+-spec get_node_status(pid()) -> up | down.
+get_node_status(Pid) ->
+    gen_server:call(Pid, node_status, infinity).
+
+
 %% gen_server
 init(Node) ->
     ok = net_kernel:monitor_nodes(true),
     {ok, init_timer(#state{node = Node, node_up = false}, 0)}.
 
+
+handle_call(node_status, _From, State = #state{node = Node, node_up = IsUp}) ->
+    {reply, handle_get_node_status(Node, IsUp), State};
 
 handle_call(Msg, _From, State) ->
     error_logger:error_msg("Unexpected message: ~p~n", [Msg]),
@@ -45,6 +54,7 @@ handle_info({nodeup, _}, State) ->
     {noreply, State};
 
 handle_info({nodedown, Node}, State = #state{node = Node}) ->
+    erlang_node_discovery_pubsub:pub(),
     {noreply, init_timer(State#state{node_up = false})};
 
 handle_info({nodedown, _}, State) ->
@@ -85,3 +95,11 @@ init_timer(State) ->
 init_timer(State = #state{timer = Timer}, Delay) ->
     catch erlang:cancel_timer(Timer),
     State#state{timer = erlang:send_after(Delay, self(), ping)}.
+
+
+-spec handle_get_node_status(node(), boolean()) -> boolean().
+handle_get_node_status(Node, false) when Node =:= node() ->
+    true;
+
+handle_get_node_status(_, Bool) ->
+    Bool.

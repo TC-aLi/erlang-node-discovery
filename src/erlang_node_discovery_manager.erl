@@ -12,6 +12,7 @@
 -export([add_node/3]).
 -export([remove_node/1]).
 -export([list_nodes/0]).
+-export([get_node_status/0, get_node_status/1]).
 -export([get_info/0]).
 
 -record(state, {
@@ -41,6 +42,16 @@ list_nodes() ->
     gen_server:call(?MODULE, list_nodes, infinity).
 
 
+-spec get_node_status() -> [{node(), boolean()}].
+get_node_status() ->
+    gen_server:call(?MODULE, get_node_status, infinity).
+
+
+-spec get_node_status(node()) -> boolean().
+get_node_status(Node) ->
+    gen_server:call(?MODULE, {get_node_status, Node}, infinity).
+
+
 -spec get_info() -> Info when
       Info     :: [InfoElem],
       InfoElem :: {workers, [{node(), pid()}]}
@@ -51,6 +62,7 @@ get_info() ->
 
 %% gen_server
 init([]) ->
+    process_flag(trap_exit, true),
     Callback = application:get_env(erlang_node_discovery, db_callback, erlang_node_discovery_db),
     ResolveFunc =
     case application:get_env(erlang_node_discovery, resolve_func) of
@@ -72,6 +84,13 @@ handle_call({remove_node, Node}, _From, State = #state{db_callback = Callback}) 
 handle_call(list_nodes, _From, State = #state{db_callback = Callback}) ->
     {reply, Callback:list_nodes(), State};
 
+handle_call({get_node_status, Node}, _From, State = #state{workers = Workers}) ->
+    {reply, handle_get_node_status(Node, Workers), State};
+
+handle_call(get_node_status, _From, State = #state{workers = Workers}) ->
+    Reply = [{Node, erlang_node_discovery_worker:get_node_status(Pid)} || {Node, Pid} <- maps:to_list(Workers)],
+    {reply, Reply, State};
+
 handle_call(get_info, _From, State = #state{workers = Workers, db_callback = Callback}) ->
     Info = [
         {workers, maps:to_list(Workers)},
@@ -88,6 +107,10 @@ handle_cast(Msg, State) ->
     error_logger:error_msg("Unexpected message: ~p~n", [Msg]),
     {noreply, State}.
 
+
+handle_info({'EXIT', _Pid, Reason}, State) ->
+    io:format("Pub sub client down with reason: ~p~n", [Reason]),
+    {noreply, reinit_workers(State)};
 
 handle_info({'DOWN', _Ref, _Type, Pid, Reason}, State) ->
     error_logger:info_msg("Worker down with reason: ~p~n", [Reason]),
@@ -162,3 +185,13 @@ remove_workers(State = #state{db_callback = Callback, workers = Workers}) ->
         end
     end,
     State#state{workers = maps:fold(FoldFun, #{}, Workers)}.
+
+
+-spec handle_get_node_status(node(), map()) -> boolean() | error.
+handle_get_node_status(Node, Workers) ->
+    case maps:find(Node, Workers) of
+        {ok, Pid} ->
+            erlang_node_discovery_worker:get_node_status(Pid);
+        error ->
+            false
+    end.

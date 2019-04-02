@@ -11,10 +11,9 @@ start_link() ->
 
 init([]) ->
     WorkersSup     = child_spec(erlang_node_discovery_worker_sup, supervisor),
-    NodeDB         = child_spec(erlang_node_discovery_db,         worker),
     WorkersManager = child_spec(erlang_node_discovery_manager,    worker),
     PubsubClient   = child_spec(erlang_node_discovery_pubsub,     worker),
-    {ok, {sup_spec(), [WorkersSup, NodeDB, WorkersManager, PubsubClient]}}.
+    {ok, {sup_spec(), [WorkersSup, WorkersManager, PubsubClient]}}.
 
 
 sup_spec() ->

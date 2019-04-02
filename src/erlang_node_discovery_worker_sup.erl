@@ -23,14 +23,19 @@ start_link() ->
 
 
 init([]) ->
-    ChildSpec = {
-        erlang_node_discovery_worker, {erlang_node_discovery_worker, start_link, []},
-        temporary, 5000, worker, []
-    },
-    {ok, {sup_spec(), [ChildSpec]}}.
+    {ok, {sup_spec(), [child_spec()]}}.
 
 
 sup_spec() ->
     #{strategy  => simple_one_for_one,
       intensity => 4,
       period    => 3600}.
+
+
+child_spec() ->
+    #{id       => erlang_node_discovery_worker,
+      start    => {erlang_node_discovery_worker, start_link, []},
+      restart  => temporary,
+      shutdown => 5000,
+      type     => worker,
+      modules  => []}.
