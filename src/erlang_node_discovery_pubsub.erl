@@ -126,7 +126,7 @@ init_psub(State) ->
 
 psub(State = #state{sub_pchan = PChan}) ->
     RedisConf = application:get_all_env(erlang_node_discovery),
-    RedisCluster = proplists:get_value(redis_cluster, RedisConf, 0),
+    RedisCluster = proplists:get_value(redis_cluster, RedisConf, node_discovery),
     Conf = proplists:get_value(list_to_atom(atom_to_list(RedisCluster) ++ "_1"), redis_config_manager:get_all_hosts(RedisCluster), []),
     Host = proplists:get_value(name, Conf, "127.0.0.1"),
     Port = proplists:get_value(port, Conf, 6379),
