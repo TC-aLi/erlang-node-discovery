@@ -39,12 +39,12 @@ init([]) ->
 
 
 handle_call(Msg, _From, State) ->
-    io:format("Unexpected message: ~p~n", [Msg]),
+    error_logger:error_msg("Unexpected message: ~p~n", [Msg]),
     {reply, ok, State}.
 
 
 handle_cast(Msg, State) ->
-    io:format("Unexpected message: ~p~n", [Msg]),
+    error_logger:error_msg("Unexpected message: ~p~n", [Msg]),
     {noreply, State}.
 
 
@@ -60,7 +60,7 @@ handle_info(pub, State = #state{pub_payload = Payload}) ->
     {noreply, State1};
 
 handle_info({subscribed, PChan, Pid}, State = #state{sub_pid = Pid}) ->
-    io:format("Channel subscribed ~p~n", [PChan]),
+    error_logger:info_msg("Channel subscribed ~p~n", [PChan]),
     eredis_sub:ack_message(Pid),
     {noreply, State};
 
@@ -69,31 +69,31 @@ handle_info({pmessage, PChan, _Chan, PL, Pid}, State = #state{sub_pid = Pid, sub
     {To, {From, {Host, Port}}} = binary_to_term(PL),
     case To of
         all ->
-            io:format("Message received from ~p to ~p~n", [From, To]),
+            error_logger:info_msg("Message received from ~p to ~p~n", [From, To]),
             add_node(From, Host, Port),
             From =/= Node andalso publish(From, State#state{pub_timer = once});
         Node ->
-            io:format("Message received from ~p to ~p ~n", [From, To]),
+            error_logger:info_msg("Message received from ~p to ~p ~n", [From, To]),
             add_node(From, Host, Port);
         _ ->
-            io:format("Message received from ~p to ~p ignored~n", [From, To]),
+            error_logger:info_msg("Message received from ~p to ~p ignored~n", [From, To]),
             ignore
     end,
     {noreply, State};
 
 handle_info({eredis_disconnected, Pid}, State = #state{sub_pid = Pid}) ->
-    io:format("eredis disconnected ~p~n", [Pid]),
+    error_logger:info_msg("eredis disconnected ~p~n", [Pid]),
     eredis_sub:ack_message(Pid),
     {noreply, State};
 
 handle_info({eredis_connected, Pid}, State = #state{sub_pid = Pid, sub_pchan = PChan}) ->
-    io:format("eredis connected ~p~n", [Pid]),
+    error_logger:info_msg("eredis connected ~p~n", [Pid]),
     eredis_sub:ack_message(Pid),
     eredis_sub:psubscribe(Pid, [PChan]),
     {noreply, State};
 
 handle_info(Msg, State) ->
-    io:format("Unexpected message: ~p~n", [Msg]),
+    error_logger:error_msg("Unexpected message: ~p~n", [Msg]),
     {noreply, State}.
 
 
