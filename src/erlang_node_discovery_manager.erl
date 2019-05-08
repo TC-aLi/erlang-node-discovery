@@ -105,21 +105,21 @@ handle_call(get_info, _From, State = #state{workers = Workers, db_callback = Cal
     {reply, Info, State};
 
 handle_call(Msg, _From, State) ->
-    error_logger:error_msg("Unexpected message: ~p~n", [Msg]),
+    lager:error("Unexpected message: ~p~n", [Msg]),
     {reply, {error, {bad_msg, Msg}}, State}.
 
 
 handle_cast(Msg, State) ->
-    error_logger:error_msg("Unexpected message: ~p~n", [Msg]),
+    lager:error("Unexpected message: ~p~n", [Msg]),
     {noreply, State}.
 
 
 handle_info({'DOWN', _Ref, _Type, Pid, Reason}, State) ->
-    error_logger:info_msg("Worker down with reason: ~p~n", [Reason]),
+    lager:info("Worker down with reason: ~p~n", [Reason]),
     {noreply, reinit_workers(worker_down(State, Pid))};
 
 handle_info(Msg, State) ->
-    error_logger:error_msg("Unexpected message: ~p~n", [Msg]),
+    lager:error("Unexpected message: ~p~n", [Msg]),
     {noreply, State}.
 
 
@@ -162,7 +162,7 @@ add_workers(State = #state{db_callback = Callback, workers = Workers}) ->
             error ->
                 {ok, Pid} = erlang_node_discovery_worker_sup:start_worker(Node),
                 erlang:monitor(process, Pid),
-                error_logger:info_msg("Started discovery worker for node ~s at ~p~n", [Node, Pid]),
+                lager:info("Started discovery worker for node ~s at ~p~n", [Node, Pid]),
                 TmpWorkers#{Node => Pid};
             {ok, _} ->
                 TmpWorkers
@@ -182,7 +182,7 @@ remove_workers(State = #state{db_callback = Callback, workers = Workers}) ->
                 TmpWorkers#{Node => Pid};
             false ->
                 ok = erlang_node_discovery_worker_sup:stop_worker(Pid),
-                error_logger:info_msg("Stopped discovery worker for node ~s at ~p~n", [Node, Pid]),
+                lager:info("Stopped discovery worker for node ~s at ~p~n", [Node, Pid]),
                 TmpWorkers
         end
     end,

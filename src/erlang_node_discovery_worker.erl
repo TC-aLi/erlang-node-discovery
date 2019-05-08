@@ -46,12 +46,12 @@ handle_call(is_node_up, _From, State = #state{node = Node, node_up = IsUp}) ->
     {reply, IsUp orelse Node =:= node(), State};
 
 handle_call(Msg, _From, State) ->
-    error_logger:error_msg("Unexpected message: ~p~n", [Msg]),
+    lager:error("Unexpected message: ~p~n", [Msg]),
     {reply, {error, {bad_msg, Msg}}, State}.
 
 
 handle_cast(Msg, State) ->
-    error_logger:error_msg("Unexpected message: ~p~n", [Msg]),
+    lager:error("Unexpected message: ~p~n", [Msg]),
     {noreply, State}.
 
 
@@ -76,7 +76,7 @@ handle_info(ping, State = #state{node = Node}) ->
     {noreply, init_timer(State)};
 
 handle_info(Msg, State) ->
-    error_logger:error_msg("Unexpected message: ~p~n", [Msg]),
+    lager:error("Unexpected message: ~p~n", [Msg]),
     {noreply, State}.
 
 
