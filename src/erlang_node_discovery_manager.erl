@@ -12,6 +12,7 @@
 -export([add_node/3]).
 -export([remove_node/1]).
 -export([list_nodes/0]).
+-export([is_node_up/0, is_node_up/1]).
 -export([get_info/0]).
 
 -record(state, {
@@ -41,6 +42,16 @@ list_nodes() ->
     gen_server:call(?MODULE, list_nodes, infinity).
 
 
+-spec is_node_up() -> [{node(), boolean()}].
+is_node_up() ->
+    gen_server:call(?MODULE, is_node_up, infinity).
+
+
+-spec is_node_up(node()) -> boolean().
+is_node_up(Node) ->
+    gen_server:call(?MODULE, {is_node_up, Node}, infinity).
+
+
 -spec get_info() -> Info when
       Info     :: [InfoElem],
       InfoElem :: {workers, [{node(), pid()}]}
@@ -52,27 +63,13 @@ get_info() ->
 %% gen_server
 init([]) ->
     Callback = application:get_env(erlang_node_discovery, db_callback, erlang_node_discovery_db),
-    error_logger:info_msg("Using ~p as node db~n", [Callback]),
-    case application:get_env(erlang_node_discovery, cookie) of
-        undefined -> ok;
-        {ok, Cookie} -> erlang:set_cookie(node(), Cookie)
-    end,
-    ResolveFunc = case application:get_env(erlang_node_discovery, resolve_func) of
+    ResolveFunc =
+    case application:get_env(erlang_node_discovery, resolve_func) of
         undefined -> fun(H) -> H end;
         {ok, F} when is_function(F, 1) -> F;
         {ok, {M, F}} -> fun M:F/1
     end,
-    NodeHostPorts = application:get_env(erlang_node_discovery, node_host_ports, []),
-
-    %% adding static nodes to db
-    _ = [
-        begin
-            Node = list_to_atom(lists:flatten(io_lib:format("~s@~s", [NodeName, Host]))),
-            Callback:add_node(Node, ResolveFunc(Host), Port),
-            error_logger:info_msg("Added static node to db ~s~n", [Node])
-        end || {NodeName, Host, Port} <- NodeHostPorts
-    ],
-    {ok, reinit_workers(#state{workers = #{}, resolve_func = ResolveFunc, db_callback = Callback})}.
+    {ok, #state{workers = get_workers() , resolve_func = ResolveFunc, db_callback = Callback}}.
 
 
 handle_call({add_node, Node, Host, Port}, _From, State = #state{db_callback = Callback, resolve_func = RF}) ->
@@ -86,6 +83,20 @@ handle_call({remove_node, Node}, _From, State = #state{db_callback = Callback}) 
 handle_call(list_nodes, _From, State = #state{db_callback = Callback}) ->
     {reply, Callback:list_nodes(), State};
 
+handle_call({is_node_up, Node}, _From, State = #state{workers = Workers}) ->
+    Reply =
+    case maps:find(Node, Workers) of
+        {ok, Pid} ->
+            erlang_node_discovery_worker:is_node_up(Pid);
+        error ->
+            false
+    end,
+    {reply,Reply, State};
+
+handle_call(is_node_up, _From, State = #state{workers = Workers}) ->
+    Reply = [{Node, erlang_node_discovery_worker:is_node_up(Pid)} || {Node, Pid} <- maps:to_list(Workers)],
+    {reply, Reply, State};
+
 handle_call(get_info, _From, State = #state{workers = Workers, db_callback = Callback}) ->
     Info = [
         {workers, maps:to_list(Workers)},
@@ -94,21 +105,21 @@ handle_call(get_info, _From, State = #state{workers = Workers, db_callback = Cal
     {reply, Info, State};
 
 handle_call(Msg, _From, State) ->
-    error_logger:error_msg("Unexpected message: ~p~n", [Msg]),
+    lager:error("Unexpected message: ~p~n", [Msg]),
     {reply, {error, {bad_msg, Msg}}, State}.
 
 
 handle_cast(Msg, State) ->
-    error_logger:error_msg("Unexpected message: ~p~n", [Msg]),
+    lager:error("Unexpected message: ~p~n", [Msg]),
     {noreply, State}.
 
 
 handle_info({'DOWN', _Ref, _Type, Pid, Reason}, State) ->
-    error_logger:info_msg("Worker down with reason: ~p~n", [Reason]),
+    lager:info("Worker down with reason: ~p~n", [Reason]),
     {noreply, reinit_workers(worker_down(State, Pid))};
 
 handle_info(Msg, State) ->
-    error_logger:error_msg("Unexpected message: ~p~n", [Msg]),
+    lager:error("Unexpected message: ~p~n", [Msg]),
     {noreply, State}.
 
 
@@ -151,7 +162,7 @@ add_workers(State = #state{db_callback = Callback, workers = Workers}) ->
             error ->
                 {ok, Pid} = erlang_node_discovery_worker_sup:start_worker(Node),
                 erlang:monitor(process, Pid),
-                error_logger:info_msg("Started discovery worker for node ~s at ~p~n", [Node, Pid]),
+                lager:info("Started discovery worker for node ~s at ~p~n", [Node, Pid]),
                 TmpWorkers#{Node => Pid};
             {ok, _} ->
                 TmpWorkers
@@ -171,8 +182,12 @@ remove_workers(State = #state{db_callback = Callback, workers = Workers}) ->
                 TmpWorkers#{Node => Pid};
             false ->
                 ok = erlang_node_discovery_worker_sup:stop_worker(Pid),
-                error_logger:info_msg("Stopped discovery worker for node ~s at ~p~n", [Node, Pid]),
+                lager:info("Stopped discovery worker for node ~s at ~p~n", [Node, Pid]),
                 TmpWorkers
         end
     end,
     State#state{workers = maps:fold(FoldFun, #{}, Workers)}.
+
+
+get_workers() ->
+   maps:from_list([{erlang_node_discovery_worker:get_node(Worker), Worker} || {_, Worker, _, _} <- supervisor:which_children(erlang_node_discovery_worker_sup)]).

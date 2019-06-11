@@ -53,17 +53,17 @@ handle_call(list_nodes, _From, State) ->
     {reply, maps:to_list(State#state.nodes), State};
 
 handle_call(Msg, _From, State) ->
-    error_logger:error_msg("Unexpected message: ~p~n", [Msg]),
+    lager:error("Unexpected message: ~p~n", [Msg]),
     {reply, {error, {bad_msg, Msg}}, State}.
 
 
 handle_cast(Msg, State) ->
-    error_logger:error_msg("Unexpected message: ~p~n", [Msg]),
+    lager:error("Unexpected message: ~p~n", [Msg]),
     {noreply, State}.
 
 
 handle_info(Msg, State) ->
-    error_logger:error_msg("Unexpected message: ~p~n", [Msg]),
+    lager:error("Unexpected message: ~p~n", [Msg]),
     {noreply, State}.
 
 

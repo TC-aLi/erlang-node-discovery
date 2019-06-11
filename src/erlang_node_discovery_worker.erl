@@ -9,6 +9,8 @@
 -export([code_change/3]).
 
 -export([start_link/1]).
+-export([get_node/1]).
+-export([is_node_up/1]).
 
 -record(state, {
     node    :: node(),
@@ -22,19 +24,34 @@ start_link(Node) ->
     gen_server:start_link(?MODULE, Node, []).
 
 
+-spec get_node(pid()) -> node().
+get_node(Worker) ->
+    gen_server:call(Worker, get_node, infinity).
+
+-spec is_node_up(pid()) -> boolean().
+is_node_up(Worker) ->
+    gen_server:call(Worker, is_node_up, infinity).
+
+
 %% gen_server
 init(Node) ->
     ok = net_kernel:monitor_nodes(true),
     {ok, init_timer(#state{node = Node, node_up = false}, 0)}.
 
 
+handle_call(get_node, _From, State = #state{node = Node}) ->
+    {reply, Node, State};
+
+handle_call(is_node_up, _From, State = #state{node = Node, node_up = IsUp}) ->
+    {reply, IsUp orelse Node =:= node(), State};
+
 handle_call(Msg, _From, State) ->
-    error_logger:error_msg("Unexpected message: ~p~n", [Msg]),
+    lager:error("Unexpected message: ~p~n", [Msg]),
     {reply, {error, {bad_msg, Msg}}, State}.
 
 
 handle_cast(Msg, State) ->
-    error_logger:error_msg("Unexpected message: ~p~n", [Msg]),
+    lager:error("Unexpected message: ~p~n", [Msg]),
     {noreply, State}.
 
 
@@ -45,6 +62,7 @@ handle_info({nodeup, _}, State) ->
     {noreply, State};
 
 handle_info({nodedown, Node}, State = #state{node = Node}) ->
+    erlang_node_discovery_pubsub:pub(),
     {noreply, init_timer(State#state{node_up = false})};
 
 handle_info({nodedown, _}, State) ->
@@ -58,7 +76,7 @@ handle_info(ping, State = #state{node = Node}) ->
     {noreply, init_timer(State)};
 
 handle_info(Msg, State) ->
-    error_logger:error_msg("Unexpected message: ~p~n", [Msg]),
+    lager:error("Unexpected message: ~p~n", [Msg]),
     {noreply, State}.
 
 

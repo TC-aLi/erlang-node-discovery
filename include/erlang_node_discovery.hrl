@@ -1,0 +1,4 @@
+-define(DEFAULT_CHANNEL_PREFIX, "node_info_channel_").
+-define(DEFAULT_CONTAINER_NAME, "CONTAINER_NAME").
+-define(DEFAULT_PUB_INTERVAL,   15000).
+-define(DEFAULT_PUB_DELAY,      1000).

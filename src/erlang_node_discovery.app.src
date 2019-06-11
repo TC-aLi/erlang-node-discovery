@@ -5,7 +5,10 @@
     {mod, { erlang_node_discovery_app, []}},
     {applications, [
         kernel,
-        stdlib]
+        stdlib,
+        worker_pool,
+        redis_config,
+        eredis]
     },
     {env,[]},
     {modules, []},

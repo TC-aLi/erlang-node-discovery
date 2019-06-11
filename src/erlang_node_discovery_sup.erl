@@ -10,16 +10,23 @@ start_link() ->
 
 
 init([]) ->
-    WorkersSup = {
-        erlang_node_discovery_worker_sup, {erlang_node_discovery_worker_sup, start_link, []},
-        permanent, 5000, supervisor, [erlang_node_discovery_worker_sup]
-    },
-    NodeDB = {
-        erlang_node_discovery_db, {erlang_node_discovery_db, start_link, []},
-        permanent, 5000, worker, [erlang_node_discovery_db]
-    },
-    WorkersManager =  {
-        erlang_node_discovery_manager, {erlang_node_discovery_manager, start_link, []},
-        permanent, 5000, worker, [erlang_node_discovery_manager]
-    },
-    {ok, {{rest_for_one, 4, 3600}, [WorkersSup, NodeDB, WorkersManager]}}.
+    WorkersSup     = child_spec(erlang_node_discovery_worker_sup, supervisor),
+    NodeDB         = child_spec(erlang_node_discovery_db,         worker),
+    WorkersManager = child_spec(erlang_node_discovery_manager,    worker),
+    PubsubClient   = child_spec(erlang_node_discovery_pubsub,     worker),
+    {ok, {sup_spec(), [WorkersSup, NodeDB, WorkersManager, PubsubClient]}}.
+
+
+sup_spec() ->
+    #{strategy  => one_for_one,
+      intensity => 4,
+      period    => 3600}.
+
+
+child_spec(Mod, Type) ->
+    #{id       => Mod,
+      start    => {Mod, start_link, []},
+      restart  => permanent,
+      shutdown => 5000,
+      type     => Type,
+      modules  => [Mod]}.

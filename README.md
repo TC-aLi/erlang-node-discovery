@@ -1,42 +1,51 @@
-# Erlang node discovery #
+# Node discovery #
 
-Allows to organize Erlang/Elixir node discovery using the information
-about nodes provided in config. Useful in cases when your Erlang/Elixir nodes can be started/re-started
-on different hosts, as it happens in Mesos.
+Allows Erlang node discovery using Redis pub-sub with epmdless.
 
+## Configuration ##
+An example:
 
-## Basic configuration ##
-
-```
-[
-    {erlang_node_discovery, [
-        {db_callback, erlang_node_discovery_db},
-        % List of {node, host, port}
-        {node_host_ports, [
-            {app1, host1.local, 17011},
-            {app2, host2.local, 17012},
-            {app3, host3.local, 17013}
-        ]}
-    ]}
-].
+```erl
+{erlang_node_discovery,
+    [{pub_interval, 15000},
+     {container_name, "CONTAINER_NAME"},
+     {channel_prefix, "node_info_channel_"},
+     {redis_cluster, node_discovery},
+     {discovery_port, 17010},
+     {db_callback, epmdless_dist}]}
 ```
 
+db_callback
+-----------
+Database callback module for node discovery service.
 
-## Using the application with EPMDLESS ##
+discovery_port
+--------------
+The port number for discovery service.
 
-It might be useful for cases when you want to organize a service discovery and don't want to relay on
-standard distribution protocol. See more details about EPMDLESS here: https://github.com/oltarasenko/epmdless
+It is the epmdless distribution port.
 
+redis_cluster
+-------------
+Redis cluster config for discovery service.
 
+It should match one configuration in redis_config.
 
-```
-{ erlang_node_discovery, [
-    {db_callback, epmdless_dist},
-    {node_host_ports, [
-        {app1, host1.local, 17011},
-        {app2, host2.local, 17012},
-        {app3, host3.local, 17013}
-    ]},
-    {cookie, app_cookie}
-]}
-  ```
+channel_prefix
+--------------
+The pub-sub channel prefix for discovery service.
+
+It will be published to the redis channel as identify for the cluster.
+
+container_name
+--------------
+The environment variable for container name.
+
+It will be published to the redis channel as identify for the node.
+
+pub_interval
+------------
+The publish time interval, in milliseconds.
+
+A node will publish its info to the redis channel when it's not in a cluster.
+

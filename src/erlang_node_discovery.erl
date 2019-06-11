@@ -3,6 +3,7 @@
 -export([add_node/2, add_node/3]).
 -export([remove_node/1]).
 -export([list_nodes/0]).
+-export([is_node_up/0, is_node_up/1]).
 
 
 -spec add_node(node(), inet:port_number()) -> ok.
@@ -27,3 +28,13 @@ remove_node(Node) ->
 -spec list_nodes() -> [{node(), {inet:hostname(), inet:port_number()}}].
 list_nodes() ->
     erlang_node_discovery_manager:list_nodes().
+
+
+-spec is_node_up() -> [{node(), boolean()}].
+is_node_up() ->
+    erlang_node_discovery_manager:is_node_up().
+
+
+-spec is_node_up(node()) -> boolean().
+is_node_up(Node) ->
+    erlang_node_discovery_manager:is_node_up(Node).
